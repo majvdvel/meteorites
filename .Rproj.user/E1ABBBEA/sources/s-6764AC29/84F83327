@@ -1,0 +1,23 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1515676049724.000,
+    "dirty" : false,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "84F83327",
+    "lastKnownWriteTime" : 2323048650171772784,
+    "last_content_update" : 1515676049724,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "id" : "2c8496e7e5e24542bb7ef394f67cd161",
+        "name" : "mapWorld",
+        "title" : "mapWorld"
+    },
+    "relative_order" : 4,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "object_explorer"
+}

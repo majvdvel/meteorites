@@ -1,0 +1,24 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1515762720295.000,
+    "dirty" : true,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "2101047152",
+    "id" : "722DF95E",
+    "lastKnownWriteTime" : 1515765299,
+    "last_content_update" : 1515766411355,
+    "path" : "~/Documents/R/meteorites/workflow.R",
+    "project_path" : "workflow.R",
+    "properties" : {
+        "cursorPosition" : "38,0",
+        "docOutlineVisible" : "0",
+        "scrollLine" : "30",
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

@@ -1,0 +1,97 @@
+---
+title: "Meteorites"
+author: "Mattias Van de Velde"
+date: "12-01-2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Meteorite sightings 
+
+NASA has opened their database to the world at <https://data.nasa.gov/>, where they demonstrate their own test data and various measurements around the globe. One of the available datasets (which can be downloaded from [this location](https://data.nasa.gov/Space-Science/Meteorite-Landings/gh4g-9sfh "NASA Meteorite Landings Database")) contains data on over 45 000 meteorites, including their chemical composition, their mass, and the year they were discovered and the corresponding location. Some interesting geospatial visualisations and insights can be obtained from this database, so let's get going.
+
+For the following workflow, these packages are used:
+[`readr`](https://cran.r-project.org/package=readr), [`data.table`](https://cran.r-project.org/package=data.table), [`lubridate`](https://cran.r-project.org/package=lubridate), [`leaflet`](https://cran.r-project.org/package=leaflet), [`leaflet.extras`](https://cran.r-project.org/package=leaflet.extras), [`ggplot2`](https://cran.r-project.org/package=ggplot2), [`maps`](https://cran.r-project.org/package=maps), [`maptools`](https://cran.r-project.org/package=maptools) and [`raster`](https://cran.r-project.org/package=raster).
+
+```{r include = FALSE, message = FALSE, warning = FALSE}
+library(readr)
+library(data.table)
+library(leaflet)
+library(leaflet.extras)
+library(ggplot2)
+library(maps)
+library(maptools)
+library(raster)
+library(knitr)
+```
+
+## Data collection and cleanup
+
+After downloading the csv file from NASA's database, the first steps in our analysis process consist of cleaning the data. We use the `readr::read_csv()` function to load our data into our R instance, and subsequently transform the resulting `data.frame` into a `data.table` object, where all `NA` values are omitted from the table, as they will not benefit us.
+
+```{r include = TRUE, message = FALSE}
+met <- read_csv('Meteorite_Landings.csv')
+met <- na.omit(as.data.table(met))
+```
+
+If we now examine the data, we get a nice table. Thanks to NASA's formatting, we should not have a lot of cleaning to do! We can then use the `str()` function to check whether every column has its correct class. Since we are only interested in the column types, we will keep the maximum nesting level at 1. Some errors may occur in these types, since `readr::read_csv()` does not know by default what data types it will extract from the given csv file.
+
+```{r include = TRUE}
+kable(head(met))
+str(met, max.level = 1)
+```
+
+We see that the `year` column has been interpreted as the `character` class, and that every year has been presented by the date of it's first day. We would very much like to extract the year from these character strings, since the rest of the information is obsolete. For this purpose, we can use the `lubridate` package. As a first step, the `character` string gets transformed into a `datetime` format, which is then entered in the `lubridate::year()` function to extract the year. For the cases where this procedure fails, an `NA` value will be introduced, which we can subsequently remove using `na.omit()`. Another aspect which we can adapt is the `fall` column. We know from NASA's documentation that this column contains the distinction between meteorites that have been seen falling, and those who were just found. Consequently, this column only contains the respective entries "Fell" and "Found". To speed up our future analysis process, we can transform the `fall` column into a  `factor` column. Another step which we can take, is to change the name of the current `mass (g)` column into `mass`. This last step is purely preferential and will only have an impact on user efficiency.
+
+```{r include = TRUE, warning = FALSE}
+met[, year := lubridate::dmy_hms(year)]
+met[, year := lubridate::year(year)]
+met <- na.omit(met)
+met[, fall := as.factor(fall)]
+setnames(met, 'mass (g)', 'mass')
+```
+
+We can now move to the next step of our cleaning procedure. Now the classes for each column have been correctly set, we can investigate whether the extreme values in these columns are possible. The columns we can investigate are the `year`, `reclong` (longitude) and `reclat` (latitude) columns. The first should give reasonable values, while the latter should be noted between -180 and +180 degrees, and between -90 and +90 degrees, respectively. We can use a neat little trick using `apply()` to get the results for all three columns at the same time.
+
+```{r include = TRUE}
+apply(met[, c('year', 'reclong', 'reclat')], 2, min)
+apply(met[, c('year', 'reclong', 'reclat')], 2, max)
+```
+
+We can conclude that the longitude and latitude columns have entries in the correct range, and that there might be some years which are not accurate, being set in the distant future. We will impose a threshold of the year 2016 on the data, considering that this is the year in which the dataset was released. Since we do not know the correct discovery date of these meteorites from the get-go, the best idea to not skew our data would be to remove these entries. An additional cleaning step we will perform is to get rid of all meteorites at coordinates (0.0, 0.0). The reasoning for this can be found in documentation on the meteorites in this "location". These were in fact discovered on Antarctica, however some errors snuck in the data and resulted in the meteorites being classified as found at (0.0, 0.0).
+
+After this final cleaning step, we can call the `str()` function again (this time at level 0), to see how much rows are still left in the  table of meteorites.
+
+```{r include = TRUE}
+met <- met[year <= 2016 & (reclat != 0 | reclong != 0)]
+str(met, max.level = 0)
+```
+
+## Data visualisation
+
+Now we have prepared our data for analysis, let us do some quick preliminary visualisations. We will use R's basic `plot()` function to get a quick taste of the global location of all meteorites. We will use the `fall` column to color the plot, to be able to distinguish both the found and the fallen meteorites.
+
+```{r include = TRUE}
+plot(met$reclong, met$reclat, col = met$fall)
+legend(135,35,unique(met$fall),col=1:length(met$fall),pch=1)
+```
+
+From this very unsofisticated plotting method, we can already make our first (and utmost trivial) conclusion: meteorites have predominantly been found on land. While this plot would allow us to reconstruct Earth's land masses from the locations of these meteorites, a more interesting approach would be to find out where exactly these meteorites have struck. This can be done through an interactive `leaflet` map, where we will display the meteorite's location through clustered markers. Upon zooming in on the map, each cluster splits in separate sub-clusters until the individual markers are visible. Note that if no `clusterOptions` are defined, all 31 924 meteorites will be plotted as a separate marker, which will gravely incapacitate the `leaflet`'s performance.
+
+```{r include = TRUE}
+leaflet() %>% addTiles() %>% addMarkers(data = met,
+                                        lng = ~reclong, lat = ~reclat,
+                                        popup = ~name,
+                                        clusterOptions = markerClusterOptions())
+```
+
+While the clusters provide a fast way to plot the data on a world map, it fails at giving a clear general overview of all meteorites' locations. We would like to obtain a combination of the first plot, where all points are displayed separately, and the second plot, where we can get more information about the density of the markers. An option presents itself as the `addHeatmap()` function in the `leaflet.extras` package. Using this tool, we can create a nice and quick overview of our data. Nevertheless, it tends to give worse results than the clustering approach if we want to look very closely at a limited number of locations. Considering this fact, one can argue that a dynamic `leaflet` plot is not entirely necessary, and a static plotting method using packages like `tmap` or `ggplot2` can be used instead.
+
+```{r include = TRUE}
+leaflet() %>% addTiles() %>%
+    addHeatmap(data = met, lng = ~reclong, lat = ~reclat, blur = 25, radius = 10)
+```
+
