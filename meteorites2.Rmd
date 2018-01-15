@@ -1,0 +1,138 @@
+---
+title: "Meteorites (2)"
+author: "Mattias Van de Velde"
+date: "15-01-2018"
+categories:
+    - R
+    - Data visualisation
+tags:
+    - meteorites
+    - ggplot2
+    - leaflet
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Mass
+
+In the previous blog post, we talked about visualising the locations where meteorites struck Earth and we made some conclusions on the locations where these meteorites were found. What we didn't yet touch upon is the meteorite's mass. We will continue to work with our cleaned meteorite data set, and we will set out to find out whether we can get some kind of mass distribution(s), and if we can use the meteorite mass in a global visualisation.
+
+The packages which will be used are [`data.table`](https://cran.r-project.org/package=data.table), [`leaflet`](https://cran.r-project.org/package=leaflet), [`ggplot2`](https://cran.r-project.org/package=ggplot2), [`maps`](https://cran.r-project.org/package=maps), [`maptools`](https://cran.r-project.org/package=maptools) and [`raster`](https://cran.r-project.org/package=raster).
+
+```{r include = FALSE, message = FALSE, warning = FALSE}
+library(readr)
+library(data.table)
+library(leaflet)
+library(ggplot2)
+library(knitr)
+library(maps)
+library(maptools)
+library(raster)
+met <- read_csv('Meteorite_Landings.csv')
+met <- na.omit(as.data.table(met))
+met[, year := lubridate::dmy_hms(year)]
+met[, year := lubridate::year(year)]
+met <- na.omit(met)
+met[, fall := as.factor(fall)]
+met <- met[year <= 2016 & (reclat != 0 | reclong != 0)]
+met[, country := map.where(database = 'world', reclong, reclat)]
+met[, country := tstrsplit(country, ':')[1]]
+```
+
+## Meteorite mass visualisation
+
+An initial step which we can take, is to change the name of the current `mass (g)` column into `mass`. This is purely preferential and will only have an impact on user efficiency. After this step, we can check the minimal and maximal meteorite mass, to get an idea of the mass range.
+
+```{r include = TRUE}
+setnames(met, 'mass (g)', 'mass')
+min(met[, mass])
+max(met[, mass])
+```
+
+We get a mass range of 0 to 6e+07 g. It seems that something might have gone wrong in the minimal mass range, so for our further investigations, we will omit the meteorites with a mass of 0 g. To be sure we don't throw away a significant number of meteorites, we first query our data to know how many objects have been recorded with zero mass. `data.table`'s `.N` functionality again provides a fast way to retrieve this information.
+
+```{r include = TRUE}
+met[mass == 0, .N]
+```
+```{r include = TRUE}
+met <- met[mass != 0]
+```
+
+To get an idea of the mass distribution, we will start with plotting a basic histogram. For this purpose, we will use the `ggplot2` package. Plotting the histogram is then quite straightforward:
+
+```{r fig1, include = TRUE, warning = FALSE}
+ggplot(data = met, aes(x = mass)) +
+    geom_histogram() +
+    xlab('Mass (g)') +
+    ylab('Count')
+```
+
+We can see that even though the mass has a large range, the utmost majority of all masses can be found on the lower end of the histogram. A possible circumvention to this problem, where we want to keep the large masses in sight but we still want to see more detail in the smaller masses, is to replace the x-axis by a logarithmic scale. This can be done in `ggplot2` by adding one single line to the image definition.
+
+```{r fig2, include = TRUE, warning = FALSE}
+ggplot(data = met, aes(x = mass)) +
+    geom_histogram() +
+    xlab('Mass (g)') +
+    ylab('Count') +
+    scale_x_log10()
+```
+
+This is exactly what we would like to see. It is a nice distribution with a long right tail, which might possibly be a Rayleigh distribution, but we lack too much knowledge on the subject to know for sure. To keep R from complaining, we can add the argument `bins = 50` to the `ggplot2::geom_histogram()` function. For a cleaner plot we also add a `ggplot2::theme()` function.
+
+```{r fig3, include = TRUE, warning = FALSE}
+ggplot(data = met, aes(x = mass)) +
+    geom_histogram(bins = 50) +
+    xlab('Mass (g)') +
+    ylab('Count') +
+    scale_x_log10() +
+    theme(panel.background = element_rect(fill = NA))
+```
+
+A possible explanation for the steep fall-off in the lower bounds of the distribution can be given by the size of the meteorites located in this area. These are generally very small, and will not be seen easily. Another factor contributing is that a lot of meteorites of this size will have burnt up in the atmosphere.
+
+It might be interesting to investigate whether both the "Found"- and "Fell"-categorised meteorites follow the same distribution. For this purpose, we can split the graph in two parts using the `fall` category. If we would use only one `ggplot2::geom_histogram()` function, we would create a stacked histogram. This is not what we want to see, so we use two function definitions, each with their own subset of the full data.
+
+```{r fig4, include = TRUE, warning = FALSE}
+ggplot(data = met, aes(x = mass)) +
+    geom_histogram(data = subset(met, fall == 'Found'), bins = 50, aes(fill = fall), alpha = 0.2) +
+    geom_histogram(data = subset(met, fall == 'Fell'), bins = 50, aes(fill = fall), alpha = 0.2) +
+    scale_fill_manual(name = 'Discovery', values = c('blue', 'red')) +
+    xlab('Mass (g)') +
+    ylab('Count') +
+    scale_x_log10() +
+    theme(panel.background = element_rect(fill = NA))
+```
+
+While there is a scaling factor in difference between the height of both distributions, it is visible that the shape of both distributions is different. The peak of the "Fell"-category meteorites has moved to the right. One could possibly explain it by using the aforementioned arguments about the size of the smaller meteorites. If we consider the most common meteorites of the total distribution, these have a mass of around 10 g. We can reason that meteorites of this size and smaller have a smaller chance of being seen when falling.
+
+## Global meteorite mass
+
+An interesting statistic might be the average meteorite mass per country area. To visualise this purpose, let us follow the [example guidelines on making choroplets](https://rstudio.github.io/leaflet/choropleths.html "Choropleths in leaflet for R") on the leaflet for R github page, while making some necessary adaptations.
+
+<!-- A first step we need to take is to get a map of the world, where every country is given by it's appropriate polygon. We can do this using the `maps` package. We then want to combine these polygons into a `SpatialPolygonsDataFrame`. The [`sp`](https://cran.r-project.com/package=sp) package has been automatically loaded when the other packages were loaded. To create the `SpatialPolygons` object from our `map` object, we use the `maptools::map2SpatialPolygons()` function. Finally, we use the `SpatialPolygonsDataFrame` constructor to combine our `SpatialPolygons` with our constructed world data. -->
+
+<!-- ```{r include = TRUE} -->
+<!-- mapWorld = map("world", fill = TRUE, plot = FALSE) -->
+<!-- IDs <- sapply(strsplit(mapWorld$names, ":"), function(x) x[1]) -->
+<!-- world <- map2SpatialPolygons(mapWorld, IDs=IDs, proj4string=CRS("+proj=longlat +datum=WGS84")) -->
+<!-- world_df<- as.data.frame(sapply(slot(world, "polygons"), function(x) slot(x, "ID"))) -->
+<!-- row.names(world_df) <- sapply(slot(world, "polygons"), function(x) slot(x, "ID")) -->
+<!-- world_SPDF <- SpatialPolygonsDataFrame(world, data = world_df) -->
+<!-- names(world_SPDF) <- 'country' -->
+<!-- world <- merge(world_SPDF, countries, by.x = 'country', by.y = 'country') -->
+<!-- world$area_sqkm <- area(world) / 1000000 -->
+<!-- bins <- c(0, 5, 10, 50, 100, 500, 1000, 3000, Inf) -->
+<!-- pal <- colorBin('YlOrRd', domain = countries$N, bins = bins) -->
+<!-- labels <- sprintf('<strong>%s</strong><br/>%g meteorites / 1000km<sup>2</sup>', world$country, 1000*world$N/world$area_sqkm) %>% -->
+<!--     lapply(htmltools::HTML) -->
+<!-- leaflet(world) %>% addTiles() %>% -->
+<!--     addPolygons(fillColor = ~pal(N), weight = 1.2, opacity = 1, color = 'white', fillOpacity = 0.7, -->
+<!--                 highlight = highlightOptions(weight = 2, color = '#666', fillOpacity = 0.7, bringToFront = TRUE), -->
+<!--                 label = labels, -->
+<!--                 labelOptions = labelOptions(style = list('font-weight' = 'normal', padding = '3px 8px'), -->
+<!--                                             textsize = '15px', direction = 'auto')) %>% -->
+<!--     addLegend(pal = pal, values = ~N, opacity = 0.7, title = NULL, position = 'bottomright') -->
+<!-- ``` -->
