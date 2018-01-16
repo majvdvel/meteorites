@@ -203,7 +203,7 @@ Now we can use the resulting `SpatialPolygonsDataFrame` to add information to th
 
 ```{r include = TRUE}
 labels <- sprintf('
-                <div style=width:350px;float:left>
+                <div style="width:350px">
                     <strong>%s</strong><br/>
                     Average meteorite mass per km<sup>2</sup>: <span style="float:right">%0.4g g</span><br/>
                     Total number of meteorites: <span style="float:right">%d</span><br/>
