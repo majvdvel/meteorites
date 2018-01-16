@@ -20,7 +20,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 In the previous blog post, we talked about visualising the locations where meteorites struck Earth and we made some conclusions on the locations where these meteorites were found. What we didn't yet touch upon is the meteorite's mass. We will continue to work with our cleaned meteorite data set, and we will set out to find out whether we can get some kind of mass distribution(s), and if we can use the meteorite mass in a global visualisation.
 
-The packages which will be used are [`data.table`](https://cran.r-project.org/package=data.table), [`leaflet`](https://cran.r-project.org/package=leaflet), [`ggplot2`](https://cran.r-project.org/package=ggplot2), [`maps`](https://cran.r-project.org/package=maps), [`maptools`](https://cran.r-project.org/package=maptools) and [`raster`](https://cran.r-project.org/package=raster).
+The packages which will be used are [`data.table`](https://cran.r-project.org/package=data.table), [`leaflet`](https://cran.r-project.org/package=leaflet), [`ggplot2`](https://cran.r-project.org/package=ggplot2), [`maps`](https://cran.r-project.org/package=maps), [`maptools`](https://cran.r-project.org/package=maptools), [`raster`](https://cran.r-project.org/package=raster), [`dplyr`](https://cran.r-project.org/package=dplyr) and [`htmltools`](https://cran.r-project.org/package=htmltools).
 
 ```{r include = FALSE, message = FALSE, warning = FALSE}
 library(readr)
@@ -31,6 +31,8 @@ library(knitr)
 library(maps)
 library(maptools)
 library(raster)
+library(dplyr)
+library(kableExtra)
 met <- read_csv('Meteorite_Landings.csv')
 met <- na.omit(as.data.table(met))
 met[, year := lubridate::dmy_hms(year)]
@@ -40,14 +42,14 @@ met[, fall := as.factor(fall)]
 met <- met[year <= 2016 & (reclat != 0 | reclong != 0)]
 met[, country := map.where(database = 'world', reclong, reclat)]
 met[, country := tstrsplit(country, ':')[1]]
+setnames(met, 'mass (g)', 'mass')
 ```
 
 ## Meteorite mass visualisation
 
-An initial step which we can take, is to change the name of the current `mass (g)` column into `mass`. This is purely preferential and will only have an impact on user efficiency. After this step, we can check the minimal and maximal meteorite mass, to get an idea of the mass range.
+As an initial step, we can check the minimal and maximal meteorite mass to get an idea of the mass range.
 
 ```{r include = TRUE}
-setnames(met, 'mass (g)', 'mass')
 min(met[, mass])
 max(met[, mass])
 ```
@@ -110,29 +112,140 @@ While there is a scaling factor in difference between the height of both distrib
 
 ## Global meteorite mass
 
-An interesting statistic might be the average meteorite mass per country area. To visualise this purpose, let us follow the [example guidelines on making choroplets](https://rstudio.github.io/leaflet/choropleths.html "Choropleths in leaflet for R") on the leaflet for R github page, while making some necessary adaptations.
+An interesting statistic might be the average meteorite mass per country area. To visualise this purpose, let us follow the [example guidelines on making choroplets](https://rstudio.github.io/leaflet/choropleths.html "Leaflet for R - Choropleths") on the leaflet for R github page, while making some necessary adaptations.
 
-<!-- A first step we need to take is to get a map of the world, where every country is given by it's appropriate polygon. We can do this using the `maps` package. We then want to combine these polygons into a `SpatialPolygonsDataFrame`. The [`sp`](https://cran.r-project.com/package=sp) package has been automatically loaded when the other packages were loaded. To create the `SpatialPolygons` object from our `map` object, we use the `maptools::map2SpatialPolygons()` function. Finally, we use the `SpatialPolygonsDataFrame` constructor to combine our `SpatialPolygons` with our constructed world data. -->
+To prepare our data for visualisation, we first need to obtain the total meteorite mass for every country. We can do this with `data.table`'s functionalities where we sum the `mass` column for all `country` entries. We obtain a `data.table` object containing the masses per country. We will use this object for the visualisation, while we can use our old `met` `data.table` to provide possible metadata for the plot.
 
-<!-- ```{r include = TRUE} -->
-<!-- mapWorld = map("world", fill = TRUE, plot = FALSE) -->
-<!-- IDs <- sapply(strsplit(mapWorld$names, ":"), function(x) x[1]) -->
-<!-- world <- map2SpatialPolygons(mapWorld, IDs=IDs, proj4string=CRS("+proj=longlat +datum=WGS84")) -->
-<!-- world_df<- as.data.frame(sapply(slot(world, "polygons"), function(x) slot(x, "ID"))) -->
-<!-- row.names(world_df) <- sapply(slot(world, "polygons"), function(x) slot(x, "ID")) -->
-<!-- world_SPDF <- SpatialPolygonsDataFrame(world, data = world_df) -->
-<!-- names(world_SPDF) <- 'country' -->
-<!-- world <- merge(world_SPDF, countries, by.x = 'country', by.y = 'country') -->
-<!-- world$area_sqkm <- area(world) / 1000000 -->
-<!-- bins <- c(0, 5, 10, 50, 100, 500, 1000, 3000, Inf) -->
-<!-- pal <- colorBin('YlOrRd', domain = countries$N, bins = bins) -->
-<!-- labels <- sprintf('<strong>%s</strong><br/>%g meteorites / 1000km<sup>2</sup>', world$country, 1000*world$N/world$area_sqkm) %>% -->
-<!--     lapply(htmltools::HTML) -->
-<!-- leaflet(world) %>% addTiles() %>% -->
-<!--     addPolygons(fillColor = ~pal(N), weight = 1.2, opacity = 1, color = 'white', fillOpacity = 0.7, -->
-<!--                 highlight = highlightOptions(weight = 2, color = '#666', fillOpacity = 0.7, bringToFront = TRUE), -->
-<!--                 label = labels, -->
-<!--                 labelOptions = labelOptions(style = list('font-weight' = 'normal', padding = '3px 8px'), -->
-<!--                                             textsize = '15px', direction = 'auto')) %>% -->
-<!--     addLegend(pal = pal, values = ~N, opacity = 0.7, title = NULL, position = 'bottomright') -->
-<!-- ``` -->
+```{r include = TRUE, message = FALSE}
+masses <- met[, sum(mass), by = country]
+setnames(masses, 'V1', 'mass')
+```
+```{r include = TRUE, eval = FALSE}
+head(masses)
+```
+```{r include = TRUE, echo = FALSE}
+kable(head(masses), 'html') %>% kable_styling(full_width = F)
+```
+
+To begin our visualisation, we need to get a map of the world where every country is represented by a polygon. We can do this using the `maps` package, and we get a `map` object `mapWorld` as our result. To create a `SpatialPolygons` object from our `map` object, we use the `maptools::map2SpatialPolygons()` function. If you remember the previous blog post, you know that some countries are represented in the format `countryname:countrypart`, where we want to extract the country name. Hence the part where we save the names under `IDs`. A next step consists of combining these polygons into a `SpatialPolygonsDataFrame`. We can achieve this by using the `SpatialPolygonsDataFrame` constructor to combine our `SpatialPolygons` object with the country ID's we previously extracted. To add our constructed world data, we can merge the `SpatialPolygonsDataFrame` with our `masses` `data.table`, where we define for both `data.frames` on which column we want to merge. For both objects, this is the `country` column.
+
+Note: while we did not explicitly load the [`sp`](https://cran.r-project.com/package=sp) package, this has been done automatically by loading our other packages.
+
+```{r include = TRUE}
+mapWorld <- map('world', fill = TRUE, plot = FALSE)
+
+IDs <- sapply(strsplit(mapWorld$names, ':'), function(x) x[1])
+world <- map2SpatialPolygons(mapWorld, IDs = IDs, proj4string = CRS('+proj=longlat +datum=WGS84'))
+
+world_df<- as.data.frame(sapply(slot(world, 'polygons'), function(x) slot(x, 'ID')))
+row.names(world_df) <- sapply(slot(world, 'polygons'), function(x) slot(x, 'ID'))
+world_SPDF <- SpatialPolygonsDataFrame(world, data = world_df)
+names(world_SPDF) <- 'country'
+
+world <- merge(world_SPDF, masses, by.x = 'country', by.y = 'country')
+```
+
+To get the total area for every country, we can search for an external data set, or we can choose to take an easier and less accurate approach, where we calculate every area in km^2 by using the `raster::area()` function to calculate the area of every country's polygon. For our own comfort, let us choose the latter. Now that we have the total area and total meteorite mass for every country, it is easy to calculate the average mass per square kilometre for every country. 
+
+```{r include = TRUE}
+world$area_sqkm <- area(world) / 1000000
+world$m_avg <- world$mass / world$area_sqkm
+```
+
+Now that our data is prepared, let us start constructing the actual visualisation using `leaflet`. The first step will be to plot the Earth where every country is given by its corresponding polygon.
+
+```{r fig5, include = TRUE}
+leaflet(world) %>%
+    setView(0, 0, zoom = 1) %>%
+    addProviderTiles('CartoDB.Positron') %>%
+    addPolygons()
+```
+
+To create colour bins for our data, we should first check in what range the mass per area lies. As not all countries are represented in NASA's database, we will have some `NA` values introduced in the `mass` entry by the aforementioned merging step. These will transfer to `NA` values in the average mass entry. To get the actual mass range, we will have to omit these values in the minimum and maximum calculations.
+
+```{r include = TRUE}
+min(na.omit(world$m_avg))
+max(na.omit(world$m_avg))
+```
+
+We find that the average meteorite mass per area lies between 0 and 105 gram per square kilometre. Hence we can define our mass bins. Since we want enough divisions to map the different masses, we can not use the `YlOrRd` color palette as proposed by the [Leaflet for R - Choropleths](https://rstudio.github.io/leaflet/choropleths.html "Leaflet for R - Choropleths") webpage, since this is limited to 9 bins. Hence we use the `colorRampPalette()` function to define our own palette. Let us also add a color legend with the `addLegend()` function.
+
+```{r fig6, include = TRUE, fig.width = 10, fig.height = 8}
+bins <- c(0, 0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.8, 25.6, 51.2, 102.4, Inf)
+pal <- colorBin(colorRampPalette(colors = c('#ffeda0', '#ff4500', '#bd0026'))(12), domain = world$m_avg, bins = bins)
+
+leaflet(world) %>%
+    setView(0, 0, zoom = 2) %>%
+    addProviderTiles('CartoDB.Positron') %>%
+    addPolygons(fillColor = ~pal(m_avg),
+                weight = 1.2,
+                opacity = 1,
+                color = 'white',
+                fillOpacity = 0.7) %>%
+    addLegend(pal = pal,
+              values = ~m_avg,
+              opacity = 0.7,
+              title = NULL,
+              position = 'bottomright')
+```
+
+Great, we are almost there! The last step will consist of constructing a label which gets displayed when a country is hovered over. Our choices of information to be displayed will be the country name, the average meteorite mass per area, the minimum and maximum meteorite size, the amount of meteorites that have been found and the percentage of "Fell" versus "Found" meteorites. We will use some functions of the `dplyr` package for this purpose.
+
+```{r include = TRUE}
+country_data <- met %>% group_by(country) %>%
+                    summarise(m_min := min(mass), m_max := max(mass), tot := n(), fell := sum(fall == 'Fell'))
+country_data <- as.data.table(country_data)
+
+world <- merge(world, country_data, by.x = 'country', by.y = 'country')
+```
+
+Now we can use the resulting `SpatialPolygonsDataFrame` to add information to the labels. These labels should be transformed to HTML-friendly text, which is why we use the `htmltools::HTML()` function.
+
+```{r include = TRUE}
+labels <- sprintf('
+                <div style=width:350px;float:left>
+                    <strong>%s</strong><br/>
+                    Average meteorite mass per km<sup>2</sup>: <span style="float:right">%0.4g g</span><br/>
+                    Total number of meteorites: <span style="float:right">%d</span><br/>
+                    Minimum meteorite mass: <span style="float:right">%0.4g g</span><br/>
+                    Maximum meteorite mass: <span style="float:right">%0.4g g</span><br/>
+        
+                    <span style="float:left">Fell</span><span style="float:right">Found</span><br/>
+                    <span style="color:#67a9cf;float:left">%0.4s%%</span>
+                    <span style="color:#ef8a62;float:right">%0.4s%%</span><br/>
+                    <span style="background:#67a9cf;width:%s%%;float:left">&nbsp;</span>
+                    <span style="background:#ef8a62;width:%s%%;float:right">&nbsp;</span>
+                </div>',
+                world$country,
+                world$m_avg,
+                world$tot,
+                world$m_min,
+                world$m_max,
+                100 * world$fell / world$tot,
+                100 * (1 - world$fell / world$tot),
+                100 * world$fell / world$tot,
+                100 * (1 - world$fell / world$tot)) %>%
+    lapply(htmltools::HTML)
+```
+
+As a last step, we can now add these labels and a hover functionality to the `leaflet` map to obtain our final result.
+
+```{r fig7, include = TRUE, fig.width = 10, fig.height = 8}
+leaflet(world) %>%
+    setView(0, 0, zoom = 2) %>%
+    addProviderTiles('CartoDB.Positron') %>%
+    addPolygons(fillColor = ~pal(m_avg),
+                weight = 1.2,
+                opacity = 1,
+                color = 'white',
+                fillOpacity = 0.7,
+                highlight = highlightOptions(weight = 2, color = '#666', fillOpacity = 0.7, bringToFront = TRUE),
+                label = labels,
+                labelOptions = labelOptions(style = list('font-weight' = 'normal', padding = '3px 8px'),
+                                            textsize = '15px', direction = 'auto')) %>%
+    addLegend(pal = pal,
+              values = ~m_avg,
+              opacity = 0.7,
+              title = htmltools::HTML('Average mass in g/km<sup>2</sup>'),
+              position = 'bottomright')
+```

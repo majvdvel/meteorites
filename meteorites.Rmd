@@ -51,13 +51,14 @@ kable(head(met))
 str(met, max.level = 1)
 ```
 
-We see that the `year` column has been interpreted as the `character` class, and that every year has been presented by the date of it's first day. We would very much like to extract the year from these character strings, since the rest of the information is obsolete. For this purpose, we can use the `lubridate` package. As a first step, the `character` string gets transformed into a `datetime` format, which is then entered in the `lubridate::year()` function to extract the year. For the cases where this procedure fails, an `NA` value will be introduced, which we can subsequently remove using `na.omit()`. Another aspect which we can adapt is the `fall` column. We know from NASA's documentation that this column contains the distinction between meteorites that have been seen falling, and those who were just found. Consequently, this column only contains the respective entries "Fell" and "Found". To speed up our future analysis process, we can transform the `fall` column into a  `factor` column.
+We see that the `year` column has been interpreted as the `character` class, and that every year has been presented by the date of it's first day. We would very much like to extract the year from these character strings, since the rest of the information is obsolete. For this purpose, we can use the `lubridate` package. As a first step, the `character` string gets transformed into a `datetime` format, which is then entered in the `lubridate::year()` function to extract the year. For the cases where this procedure fails, an `NA` value will be introduced, which we can subsequently remove using `na.omit()`. Another aspect which we can adapt is the `fall` column. We know from NASA's documentation that this column contains the distinction between meteorites that have been seen falling, and those who were just found. Consequently, this column only contains the respective entries "Fell" and "Found". To speed up our future analysis process, we can transform the `fall` column into a  `factor` column. Another step which we can take, is to change the name of the current `mass (g)` column into `mass`. This is purely preferential and will only have an impact on user efficiency.
 
 ```{r include = TRUE, warning = FALSE}
 met[, year := lubridate::dmy_hms(year)]
 met[, year := lubridate::year(year)]
 met <- na.omit(met)
 met[, fall := as.factor(fall)]
+setnames(met, 'mass (g)', 'mass')
 ```
 
 We can now move to the next step of our cleaning procedure. Now the classes for each column have been correctly set, we can investigate whether the extreme values in these columns are possible. The columns we can investigate are the `year`, `reclong` (longitude) and `reclat` (latitude) columns. The first should give reasonable values, while the latter should be noted between -180 and +180 degrees, and between -90 and +90 degrees, respectively. We can use a neat little trick using `apply()` to get the results for all three columns at the same time.
@@ -85,12 +86,15 @@ plot(met$reclong, met$reclat, col = met$fall, xlab = 'Longitude', ylab = 'Latitu
 legend(135, 35, unique(met$fall), col=1:length(met$fall), pch=1)
 ```
 
-From this very unsofisticated plotting method, we can already make our first (and utmost trivial) conclusion: meteorites have predominantly been found on land. While this plot would allow us to reconstruct Earth's land masses from the locations of these meteorites, a more interesting approach would be to find out where exactly these meteorites have struck. This can be done through an interactive `leaflet` map, where we will display the meteorite's location through clustered markers. Upon zooming in on the map, each cluster splits in separate sub-clusters until the individual markers are visible. Note that if no `clusterOptions` are defined, all 31 924 meteorites will be plotted as a separate marker, which will gravely incapacitate the `leaflet`'s performance.
+From this very unsofisticated plotting method, we can already make our first (and utmost trivial) conclusion: meteorites have predominantly been found on land. While this plot would allow us to reconstruct Earth's land masses from the locations of these meteorites, a more interesting approach would be to find out where exactly these meteorites have struck. This can be done through an interactive `leaflet` map, where we will display the meteorite's location through clustered markers. Upon zooming in on the map, each cluster splits in separate sub-clusters until the individual markers are visible. Note that if no `clusterOptions` are defined, all 31 924 meteorites will be plotted as a separate marker, which will gravely incapacitate the `leaflet`'s performance. We will also add each meteorite's data to the popup when a marker is clicked.
 
 ```{r fig2, include = TRUE}
 leaflet() %>% addProviderTiles('CartoDB.Positron') %>% addMarkers(data = met,
                                         lng = ~reclong, lat = ~reclat,
-                                        popup = ~name,
+                                        popup = ~paste('Name:', name, '<br/>',
+                                                       'Discovered:', year, '<br/>',
+                                                       'Composition:', recclass, '<br/>',
+                                                       'Mass:', mass, ' g<br/>'),
                                         clusterOptions = markerClusterOptions())
 ```
 
