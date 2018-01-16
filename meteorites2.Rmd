@@ -50,8 +50,8 @@ setnames(met, 'mass (g)', 'mass')
 As an initial step, we can check the minimal and maximal meteorite mass to get an idea of the mass range.
 
 ```{r include = TRUE}
-min(met[, mass])
-max(met[, mass])
+met[, min(mass)]
+met[, max(mass)]
 ```
 
 We get a mass range of 0 to 6e+07 g. It seems that something might have gone wrong in the minimal mass range, so for our further investigations, we will omit the meteorites with a mass of 0 g. To be sure we don't throw away a significant number of meteorites, we first query our data to know how many objects have been recorded with zero mass. `data.table`'s `.N` functionality again provides a fast way to retrieve this information.
