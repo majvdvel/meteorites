@@ -233,7 +233,7 @@ As a last step, we can now add these labels and a hover functionality to the `le
 ```{r fig7, include = TRUE, fig.width = 10, fig.height = 8}
 leaflet(world) %>%
     setView(0, 0, zoom = 2) %>%
-    addProviderTiles('CartoDB.Positron') %>%
+    addProviderTiles('CartoDB.Positron', options = providerTileOptions(minZoom = 2)) %>%
     addPolygons(fillColor = ~pal(m_avg),
                 weight = 1.2,
                 opacity = 1,

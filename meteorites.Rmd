@@ -89,13 +89,14 @@ legend(135, 35, unique(met$fall), col=1:length(met$fall), pch=1)
 From this very unsofisticated plotting method, we can already make our first (and utmost trivial) conclusion: meteorites have predominantly been found on land. While this plot would allow us to reconstruct Earth's land masses from the locations of these meteorites, a more interesting approach would be to find out where exactly these meteorites have struck. This can be done through an interactive `leaflet` map, where we will display the meteorite's location through clustered markers. Upon zooming in on the map, each cluster splits in separate sub-clusters until the individual markers are visible. Note that if no `clusterOptions` are defined, all 31 924 meteorites will be plotted as a separate marker, which will gravely incapacitate the `leaflet`'s performance. We will also add each meteorite's data to the popup when a marker is clicked.
 
 ```{r fig2, include = TRUE}
-leaflet() %>% addProviderTiles('CartoDB.Positron') %>% addMarkers(data = met,
-                                        lng = ~reclong, lat = ~reclat,
-                                        popup = ~paste('Name:', name, '<br/>',
-                                                       'Discovered:', year, '<br/>',
-                                                       'Composition:', recclass, '<br/>',
-                                                       'Mass:', mass, ' g<br/>'),
-                                        clusterOptions = markerClusterOptions())
+leaflet() %>% addProviderTiles('CartoDB.Positron') %>%
+    addMarkers(data = met,
+               lng = ~reclong, lat = ~reclat,
+               popup = ~paste('Name:', name, '<br/>',
+                              'Discovered:', year, '<br/>',
+                              'Composition:', recclass, '<br/>',
+                              'Mass:', mass, ' g<br/>'),
+               clusterOptions = markerClusterOptions())
 ```
 
 While the clusters provide a fast way to plot the data on a world map, it fails at giving a clear general overview of all meteorites' locations. We would like to obtain a combination of the first plot, where all points are displayed separately, and the second plot, where we can get more information about the density of the markers. An option presents itself as the `addHeatmap()` function in the `leaflet.extras` package. Using this tool, we can create a nice and quick overview of our data. Nevertheless, it tends to give worse results than the clustering approach if we want to look very closely at a limited number of locations. Considering this fact, one can argue that a dynamic `leaflet` plot is not entirely necessary, and a static plotting method using packages like `tmap` or `ggplot2` can be used instead.
@@ -128,7 +129,8 @@ Following the same procedure, we find that in total about 1000 meteorites were s
 If we think about the meteorite sightings, we wonder if there is a correlation to the local population density. It will be hard to significantly compare actual population density to meteorite density since there are only around 1000 meteorites sighted, but there is sufficient data to give a first impression. Since we are not going to delve into full scientific proof, we can take some small artistic freedom to provide a nice data visualisation. As you may know, `leaflet` operates with a geographical tiles system. Besides the standard tiles provided by [OpenStreetMap](http://www.openstreetmap.org "OpenStreetMap") and the popular [CartoDB](https://carto.com/location-data-services/basemaps/ "CartoDB") tiles, NASA has also provided some tiles which prove to be interesting for our current visualisation. We will use the `NASAGIBS.ViirsEarthAtNight2012` tiles. While I do not want to spoil the surprise, some information can be deducted from the name. We will now plot the meteorites where the `fall` category equals "Fell", again with the `leaflet.extras::addHeatmap()` function.
 
 ```{r fig4, include = TRUE, fig.width = 10}
-leaflet() %>% addProviderTiles(providers$NASAGIBS.ViirsEarthAtNight2012) %>%
+leaflet() %>%
+    addProviderTiles(providers$NASAGIBS.ViirsEarthAtNight2012, options = providerTileOptions(minZoom = 2)) %>%
     addHeatmap(data = met[fall == 'Fell'], lng = ~reclong, lat = ~reclat, blur = 25, radius = 10)
 ```
 
