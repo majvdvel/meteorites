@@ -1,2 +1,7 @@
 tmp
 .Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.tiff
+workflow.R
