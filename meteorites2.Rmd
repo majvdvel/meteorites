@@ -199,22 +199,26 @@ country_data <- as.data.table(country_data)
 world <- merge(world, country_data, by.x = 'country', by.y = 'country')
 ```
 
-Now we can use the resulting `SpatialPolygonsDataFrame` to add information to the labels. These labels should be transformed to HTML-friendly text, which is why we use the `htmltools::HTML()` function.
+Now we can use the resulting `SpatialPolygonsDataFrame` to add information to the labels. These labels should be transformed to HTML-friendly text, which is why we use the `htmltools::HTML()` function. We have to add `<span style="float:left">` to every line of text instead of just declaring this in the `div` style definition since Firefox tends to have issues displaying the labels otherwise.
 
 ```{r include = TRUE}
 labels <- sprintf('
                 <div style="width:350px">
                     <strong>%s</strong><br/>
-                    Average meteorite mass per km<sup>2</sup>: <span style="float:right">%0.4g g</span><br/>
-                    Total number of meteorites: <span style="float:right">%d</span><br/>
-                    Minimum meteorite mass: <span style="float:right">%0.4g g</span><br/>
-                    Maximum meteorite mass: <span style="float:right">%0.4g g</span><br/>
-        
+                    <span style="float:left">Average meteorite mass per km<sup>2</sup>:</span>
+                        <span style="float:right">%0.4g g</span><br/>
+                    <span style="float:left">Total number of meteorites:</span>
+                        <span style="float:right">%d</span><br/>
+                    <span style="float:left">Minimum meteorite mass:</span>
+                        <span style="float:right">%0.4g g</span><br/>
+                    <span style="float:left">Maximum meteorite mass:</span>
+                        <span style="float:right">%0.4g g</span><br/>
+
                     <span style="float:left">Fell</span><span style="float:right">Found</span><br/>
                     <span style="color:#67a9cf;float:left">%0.4s%%</span>
-                    <span style="color:#ef8a62;float:right">%0.4s%%</span><br/>
+                        <span style="color:#ef8a62;float:right">%0.4s%%</span><br/>
                     <span style="background:#67a9cf;width:%s%%;float:left">&nbsp;</span>
-                    <span style="background:#ef8a62;width:%s%%;float:right">&nbsp;</span>
+                        <span style="background:#ef8a62;width:%s%%;float:right">&nbsp;</span>
                 </div>',
                 world$country,
                 world$m_avg,
