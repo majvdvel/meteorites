@@ -12,6 +12,109 @@ tags:
 output: html_document
 ---
 
+```{r, echo=FALSE}
+# CONFIG
+user_name <- "majvdvel" # your Git username (only needed if
+# you want to deploy to GH pages)
+project_name <- "meteorites" # adapt!
+package_date <- "2018-01-15" # date of the CRAN snapshot that
+# the checkpoint package uses
+```
+
+### GitHub
+
+The code for the herein described process can also be freely downloaded from [https://github.com/`r user_name`/`r project_name`](https://github.com/`r user_name`/`r project_name`). 
+
+```{r include=FALSE}
+detach_all_packages <- function() {
+    basic_packages_blank <-  c("stats",
+        "graphics",
+        "grDevices",
+        "utils",
+        "datasets",
+        "methods",
+        "base")
+    basic_packages <- paste("package:", basic_packages_blank, sep = "")
+    
+    package_list <- search()[
+        ifelse(unlist(gregexpr("package:", search())) == 1, TRUE, FALSE)]
+    
+    package_list <- setdiff(package_list, basic_packages)
+    
+    if (length(package_list) > 0)  for (package in package_list) {
+        detach(package, character.only = TRUE, unload = TRUE)
+        print(paste("package ", package, " detached", sep = ""))
+    }
+}
+
+detach_all_packages()
+
+# this allows multiple persons to use the same RMarkdown
+# without adjusting the working directory by themselves all the time
+source("scripts/csf.R")
+path_to_wd <- csf() # if this - for some reason - does not work, 
+# replace with a hardcoded path, like so: "~/projects/rddj-template/analysis/"
+if ( is.null(path_to_wd) | !dir.exists(path_to_wd)) {
+    print("WARNING: No working directory specified for current user")
+} else {
+    setwd(path_to_wd)
+}
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# from https://mran.revolutionanalytics.com/web/packages/checkpoint/vignettes/using-checkpoint-with-knitr.html
+# if you don't need a package, remove it from here (commenting is probably not sufficient)
+# tidyverse: see https://blog.rstudio.org/2016/09/15/tidyverse-1-0-0/
+cat("
+library(readr)
+library(data.table)
+library(leaflet)
+library(ggplot2)
+library(maps)
+library(maptools)
+library(raster)
+library(rgeos)
+library(dplyr)
+library(kableExtra)",
+    file = "manifest.R")
+
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# if checkpoint is not yet installed, install it (for people using this
+# system for the first time)
+if (!require(checkpoint)) {
+    if (!require(devtools)) {
+        install.packages("devtools", repos = "http://cran.us.r-project.org")
+        require(devtools)
+    }
+    devtools::install_github("checkpoint",
+        username = "RevolutionAnalytics",
+        ref = "v0.4.3", # could be adapted later,
+        # as of now (mid-January 2018
+        # this is the current release on CRAN)
+        repos = "http://cran.us.r-project.org")
+    require(checkpoint)
+}
+# nolint start
+if (!dir.exists("~/.checkpoint")) {
+    dir.create("~/.checkpoint")
+}
+# nolint end
+# install packages for the specified CRAN snapshot date
+checkpoint(snapshotDate = package_date,
+    project = path_to_wd,
+    verbose = T,
+    scanForPackages = T,
+    use.knitr = F)
+rm(package_date)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+source("manifest.R")
+unlink("manifest.R")
+```
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -23,17 +126,7 @@ In the previous blog post, we talked about visualising the locations where meteo
 The packages which will be used are [`data.table`](https://cran.r-project.org/package=data.table), [`leaflet`](https://cran.r-project.org/package=leaflet), [`ggplot2`](https://cran.r-project.org/package=ggplot2), [`maps`](https://cran.r-project.org/package=maps), [`maptools`](https://cran.r-project.org/package=maptools), [`raster`](https://cran.r-project.org/package=raster), [`dplyr`](https://cran.r-project.org/package=dplyr) and [`htmltools`](https://cran.r-project.org/package=htmltools).
 
 ```{r include = FALSE, message = FALSE, warning = FALSE}
-library(readr)
-library(data.table)
-library(leaflet)
-library(ggplot2)
-library(knitr)
-library(maps)
-library(maptools)
-library(raster)
-library(dplyr)
-library(kableExtra)
-met <- read_csv('Meteorite_Landings.csv')
+met <- read_csv('input/Meteorite_Landings.csv')
 met <- na.omit(as.data.table(met))
 met[, year := lubridate::dmy_hms(year)]
 met[, year := lubridate::year(year)]
@@ -124,7 +217,7 @@ setnames(masses, 'V1', 'mass')
 head(masses)
 ```
 ```{r include = TRUE, echo = FALSE}
-kable(head(masses), 'html') %>% kable_styling(full_width = F)
+knitr::kable(head(masses), 'html') %>% kable_styling(full_width = F)
 ```
 
 To begin our visualisation, we need to get a map of the world where every country is represented by a polygon. We can do this using the `maps` package, and we get a `map` object `mapWorld` as our result. To create a `SpatialPolygons` object from our `map` object, we use the `maptools::map2SpatialPolygons()` function. If you remember the previous blog post, you know that some countries are represented in the format `countryname:countrypart`, where we want to extract the country name. Hence the part where we save the names under `IDs`. A next step consists of combining these polygons into a `SpatialPolygonsDataFrame`. We can achieve this by using the `SpatialPolygonsDataFrame` constructor to combine our `SpatialPolygons` object with the country ID's we previously extracted. To add our constructed world data, we can merge the `SpatialPolygonsDataFrame` with our `masses` `data.table`, where we define for both `data.frames` on which column we want to merge. For both objects, this is the `country` column.

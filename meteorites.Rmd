@@ -1,6 +1,6 @@
 ---
-title: "Meteorites (1)"
-author: "Mattias Van de Velde"
+title: Meteorites (1)
+author: Mattias Van de Velde
 date: "15-01-2018"
 categories:
     - R
@@ -9,8 +9,109 @@ categories:
 tags:
     - meteorites
     - leaflet
-output: html_document
+slug: meteorites
 ---
+
+```{r, echo=FALSE}
+# CONFIG
+user_name <- "majvdvel" # your Git username (only needed if
+# you want to deploy to GH pages)
+project_name <- "meteorites" # adapt!
+package_date <- "2018-01-15" # date of the CRAN snapshot that
+# the checkpoint package uses
+```
+
+### GitHub
+
+The code for the herein described process can also be freely downloaded from [https://github.com/`r user_name`/`r project_name`](https://github.com/`r user_name`/`r project_name`). 
+
+```{r include=FALSE}
+detach_all_packages <- function() {
+    basic_packages_blank <-  c("stats",
+        "graphics",
+        "grDevices",
+        "utils",
+        "datasets",
+        "methods",
+        "base")
+    basic_packages <- paste("package:", basic_packages_blank, sep = "")
+    
+    package_list <- search()[
+        ifelse(unlist(gregexpr("package:", search())) == 1, TRUE, FALSE)]
+    
+    package_list <- setdiff(package_list, basic_packages)
+    
+    if (length(package_list) > 0)  for (package in package_list) {
+        detach(package, character.only = TRUE, unload = TRUE)
+        print(paste("package ", package, " detached", sep = ""))
+    }
+}
+
+detach_all_packages()
+
+# this allows multiple persons to use the same RMarkdown
+# without adjusting the working directory by themselves all the time
+source("scripts/csf.R")
+path_to_wd <- csf() # if this - for some reason - does not work, 
+# replace with a hardcoded path, like so: "~/projects/rddj-template/analysis/"
+if ( is.null(path_to_wd) | !dir.exists(path_to_wd)) {
+    print("WARNING: No working directory specified for current user")
+} else {
+    setwd(path_to_wd)
+}
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# from https://mran.revolutionanalytics.com/web/packages/checkpoint/vignettes/using-checkpoint-with-knitr.html
+# if you don't need a package, remove it from here (commenting is probably not sufficient)
+# tidyverse: see https://blog.rstudio.org/2016/09/15/tidyverse-1-0-0/
+cat("
+library(readr)
+library(lubridate)
+library(data.table)
+library(leaflet)
+library(leaflet.extras)
+library(maps)
+library(kableExtra)",
+    file = "manifest.R")
+
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# if checkpoint is not yet installed, install it (for people using this
+# system for the first time)
+if (!require(checkpoint)) {
+    if (!require(devtools)) {
+        install.packages("devtools", repos = "http://cran.us.r-project.org")
+        require(devtools)
+    }
+    devtools::install_github("checkpoint",
+        username = "RevolutionAnalytics",
+        ref = "v0.4.3", # could be adapted later,
+        # as of now (mid-January 2018
+        # this is the current release on CRAN)
+        repos = "http://cran.us.r-project.org")
+    require(checkpoint)
+}
+# nolint start
+if (!dir.exists("~/.checkpoint")) {
+    dir.create("~/.checkpoint")
+}
+# nolint end
+# install packages for the specified CRAN snapshot date
+checkpoint(snapshotDate = package_date,
+    project = path_to_wd,
+    verbose = T,
+    scanForPackages = T,
+    use.knitr = F)
+rm(package_date)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+source("manifest.R")
+unlink("manifest.R")
+```
+
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -23,29 +124,19 @@ NASA has opened their database to the world at <https://data.nasa.gov/>, where t
 For the following workflow, the following packages are used:
 [`readr`](https://cran.r-project.org/package=readr), [`data.table`](https://cran.r-project.org/package=data.table), [`lubridate`](https://cran.r-project.org/package=lubridate), [`leaflet`](https://cran.r-project.org/package=leaflet), [`leaflet.extras`](https://cran.r-project.org/package=leaflet.extras) and [`maps`](https://cran.r-project.org/package=maps).
 
-```{r include = FALSE, message = FALSE, warning = FALSE}
-library(readr)
-library(data.table)
-library(leaflet)
-library(leaflet.extras)
-library(maps)
-library(knitr)
-library(kableExtra)
-```
-
 ## Data collection and cleanup
 
 After downloading the csv file from NASA's database, the first steps in our analysis process consist of cleaning the data. We use the `readr::read_csv()` function to load our data into our R instance, and subsequently transform the resulting `data.frame` into a `data.table` object, where all `NA` values are omitted from the table, as they will not benefit us.
 
 ```{r include = TRUE, message = FALSE}
-met <- read_csv('Meteorite_Landings.csv')
+met <- read_csv('input/Meteorite_Landings.csv')
 met <- na.omit(as.data.table(met))
 ```
 
 If we now examine the data, we get a nice table. Thanks to NASA's formatting, we should not have a lot of cleaning to do! We can then use the `str()` function to check whether every column has its correct class. Since we are only interested in the column types, we will keep the maximum nesting level at 1. Some errors may occur in these types, since `readr::read_csv()` does not know by default what data types it will extract from the given csv file.
 
 ```{r include = TRUE, echo = FALSE}
-kable(head(met))
+knitr::kable(head(met))
 ```
 ```{r include = TRUE}
 str(met, max.level = 1)
@@ -91,12 +182,12 @@ From this very unsofisticated plotting method, we can already make our first (an
 ```{r fig2, include = TRUE}
 leaflet() %>% addProviderTiles('CartoDB.Positron') %>%
     addMarkers(data = met,
-               lng = ~reclong, lat = ~reclat,
-               popup = ~paste('Name:', name, '<br/>',
-                              'Discovered:', year, '<br/>',
-                              'Composition:', recclass, '<br/>',
-                              'Mass:', mass, ' g<br/>'),
-               clusterOptions = markerClusterOptions())
+        lng = ~reclong, lat = ~reclat,
+        popup = ~paste('Name:', name, '<br/>',
+            'Discovered:', year, '<br/>',
+            'Composition:', recclass, '<br/>',
+            'Mass:', mass, ' g<br/>'),
+        clusterOptions = markerClusterOptions())
 ```
 
 While the clusters provide a fast way to plot the data on a world map, it fails at giving a clear general overview of all meteorites' locations. We would like to obtain a combination of the first plot, where all points are displayed separately, and the second plot, where we can get more information about the density of the markers. An option presents itself as the `addHeatmap()` function in the `leaflet.extras` package. Using this tool, we can create a nice and quick overview of our data. Nevertheless, it tends to give worse results than the clustering approach if we want to look very closely at a limited number of locations. Considering this fact, one can argue that a dynamic `leaflet` plot is not entirely necessary, and a static plotting method using packages like `tmap` or `ggplot2` can be used instead.
@@ -119,7 +210,7 @@ counts <- met[country %in% c('Oman', 'Antarctica'), .N, by = c('country', 'fall'
 We obtain the following table for the meteorite counts:
 
 ```{r include = TRUE, echo = FALSE}
-kable(counts, 'html') %>% kable_styling(full_width = F)
+knitr::kable(counts, 'html') %>% kable_styling(full_width = F)
 ```
 
 We can see that no meteorites have been seen falling, while over 20 000 and nearly 3000 meteorites have been found in Antarctica and Oman, respectively. If we do some research on these matters, we find that the reason for these high numbers are the [meteorite searching expeditions](https://www.livescience.com/3613-searching-meteorites-deserts-oman.html "Searching for meteorites in the deserts of Oman") which are organised in Oman and Antarctica because of the contrasting properties of the underlying sand and ice, which facilitates finding meteorites.
