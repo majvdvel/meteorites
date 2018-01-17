@@ -1,0 +1,228 @@
+---
+title: Meteorites (1)
+author: Mattias Van de Velde
+date: "15-01-2018"
+categories:
+    - R
+    - Data cleaning
+    - Data visualisation
+tags:
+    - meteorites
+    - leaflet
+slug: meteorites
+---
+
+```{r, echo=FALSE}
+# CONFIG
+user_name <- "majvdvel" # your Git username (only needed if
+# you want to deploy to GH pages)
+project_name <- "meteorites" # adapt!
+package_date <- "2018-01-15" # date of the CRAN snapshot that
+# the checkpoint package uses
+```
+
+### GitHub
+
+The code for the herein described process can also be freely downloaded from [https://github.com/`r user_name`/`r project_name`](https://github.com/`r user_name`/`r project_name`). 
+
+```{r include=FALSE}
+detach_all_packages <- function() {
+    basic_packages_blank <-  c("stats",
+        "graphics",
+        "grDevices",
+        "utils",
+        "datasets",
+        "methods",
+        "base")
+    basic_packages <- paste("package:", basic_packages_blank, sep = "")
+    
+    package_list <- search()[
+        ifelse(unlist(gregexpr("package:", search())) == 1, TRUE, FALSE)]
+    
+    package_list <- setdiff(package_list, basic_packages)
+    
+    if (length(package_list) > 0)  for (package in package_list) {
+        detach(package, character.only = TRUE, unload = TRUE)
+        print(paste("package ", package, " detached", sep = ""))
+    }
+}
+
+detach_all_packages()
+
+# this allows multiple persons to use the same RMarkdown
+# without adjusting the working directory by themselves all the time
+source("scripts/csf.R")
+path_to_wd <- csf() # if this - for some reason - does not work, 
+# replace with a hardcoded path, like so: "~/projects/rddj-template/analysis/"
+if ( is.null(path_to_wd) | !dir.exists(path_to_wd)) {
+    print("WARNING: No working directory specified for current user")
+} else {
+    setwd(path_to_wd)
+}
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# from https://mran.revolutionanalytics.com/web/packages/checkpoint/vignettes/using-checkpoint-with-knitr.html
+# if you don't need a package, remove it from here (commenting is probably not sufficient)
+# tidyverse: see https://blog.rstudio.org/2016/09/15/tidyverse-1-0-0/
+cat("
+library(readr)
+library(data.table)
+library(leaflet)
+library(leaflet.extras)
+library(maps)
+library(kableExtra)",
+    file = "manifest.R")
+
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# if checkpoint is not yet installed, install it (for people using this
+# system for the first time)
+if (!require(checkpoint)) {
+    if (!require(devtools)) {
+        install.packages("devtools", repos = "http://cran.us.r-project.org")
+        require(devtools)
+    }
+    devtools::install_github("checkpoint",
+        username = "RevolutionAnalytics",
+        ref = "v0.4.3", # could be adapted later,
+        # as of now (mid-January 2018
+        # this is the current release on CRAN)
+        repos = "http://cran.us.r-project.org")
+    require(checkpoint)
+}
+# nolint start
+if (!dir.exists("~/.checkpoint")) {
+    dir.create("~/.checkpoint")
+}
+# nolint end
+# install packages for the specified CRAN snapshot date
+checkpoint(snapshotDate = package_date,
+    project = path_to_wd,
+    verbose = T,
+    scanForPackages = T,
+    use.knitr = F)
+rm(package_date)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+source("manifest.R")
+unlink("manifest.R")
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Meteorite sightings 
+
+NASA has opened their database to the world at <https://data.nasa.gov/>, where they demonstrate their own test data and various measurements around the globe. One of the available datasets (which can be downloaded from [this location](https://data.nasa.gov/Space-Science/Meteorite-Landings/gh4g-9sfh "NASA Meteorite Landings Database")) contains data on over 45 000 meteorites, including their chemical composition, their mass, and the year they were discovered and the corresponding location. Some interesting geospatial visualisations and insights can be obtained from this database, so let's get going.
+
+For the following workflow, the following packages are used:
+[`readr`](https://cran.r-project.org/package=readr), [`data.table`](https://cran.r-project.org/package=data.table), [`lubridate`](https://cran.r-project.org/package=lubridate), [`leaflet`](https://cran.r-project.org/package=leaflet), [`leaflet.extras`](https://cran.r-project.org/package=leaflet.extras) and [`maps`](https://cran.r-project.org/package=maps).
+
+## Data collection and cleanup
+
+After downloading the csv file from NASA's database, the first steps in our analysis process consist of cleaning the data. We use the `readr::read_csv()` function to load our data into our R instance, and subsequently transform the resulting `data.frame` into a `data.table` object, where all `NA` values are omitted from the table, as they will not benefit us.
+
+```{r include = TRUE, message = FALSE}
+met <- read_csv('Meteorite_Landings.csv')
+met <- na.omit(as.data.table(met))
+```
+
+If we now examine the data, we get a nice table. Thanks to NASA's formatting, we should not have a lot of cleaning to do! We can then use the `str()` function to check whether every column has its correct class. Since we are only interested in the column types, we will keep the maximum nesting level at 1. Some errors may occur in these types, since `readr::read_csv()` does not know by default what data types it will extract from the given csv file.
+
+```{r include = TRUE, echo = FALSE}
+knitr::kable(head(met))
+```
+```{r include = TRUE}
+str(met, max.level = 1)
+```
+
+We see that the `year` column has been interpreted as the `character` class, and that every year has been presented by the date of it's first day. We would very much like to extract the year from these character strings, since the rest of the information is obsolete. For this purpose, we can use the `lubridate` package. As a first step, the `character` string gets transformed into a `datetime` format, which is then entered in the `lubridate::year()` function to extract the year. For the cases where this procedure fails, an `NA` value will be introduced, which we can subsequently remove using `na.omit()`. Another aspect which we can adapt is the `fall` column. We know from NASA's documentation that this column contains the distinction between meteorites that have been seen falling, and those who were just found. Consequently, this column only contains the respective entries "Fell" and "Found". To speed up our future analysis process, we can transform the `fall` column into a  `factor` column. Another step which we can take, is to change the name of the current `mass (g)` column into `mass`. This is purely preferential and will only have an impact on user efficiency.
+
+```{r include = TRUE, warning = FALSE}
+met[, year := lubridate::dmy_hms(year)]
+met[, year := lubridate::year(year)]
+met <- na.omit(met)
+met[, fall := as.factor(fall)]
+setnames(met, 'mass (g)', 'mass')
+```
+
+We can now move to the next step of our cleaning procedure. Now the classes for each column have been correctly set, we can investigate whether the extreme values in these columns are possible. The columns we can investigate are the `year`, `reclong` (longitude) and `reclat` (latitude) columns. The first should give reasonable values, while the latter should be noted between -180 and +180 degrees, and between -90 and +90 degrees, respectively. We can use a neat little trick using `apply()` to get the results for all three columns at the same time.
+
+```{r include = TRUE}
+apply(met[, c('year', 'reclong', 'reclat')], 2, min)
+apply(met[, c('year', 'reclong', 'reclat')], 2, max)
+```
+
+We can conclude that the longitude and latitude columns have entries in the correct range, and that there might be some years which are not accurate, being set in the distant future. We will impose a threshold of the year 2016 on the data, considering that this is the year in which the dataset was released. Since we do not know the correct discovery date of these meteorites from the get-go, the best idea to not skew our data would be to remove these entries. An additional cleaning step we will perform is to get rid of all meteorites at coordinates (0.0, 0.0). The reasoning for this can be found in documentation on the meteorites in this virtual location. These were in fact discovered on Antarctica, however some errors snuck in the data and resulted in the meteorites being classified as found at (0.0, 0.0).
+
+After this final cleaning step, we can call `data.table`'s `.N` functionality to see how much rows are still left in the table of meteorites.
+
+```{r include = TRUE}
+met <- met[year <= 2016 & (reclat != 0 | reclong != 0)]
+met[, .N]
+```
+
+## Global meteorite densities
+
+Now that we have prepared our data for analysis, let us do some quick preliminary visualisations. We will use R's basic `plot()` function to get a quick taste of the global location of all meteorites. We will use the `fall` column to color the plot, to be able to distinguish both the found and the fallen meteorites.
+
+```{r fig1, include = TRUE}
+plot(met$reclong, met$reclat, col = met$fall, xlab = 'Longitude', ylab = 'Latitude')
+legend(135, 35, unique(met$fall), col=1:length(met$fall), pch=1)
+```
+
+From this very unsofisticated plotting method, we can already make our first (and utmost trivial) conclusion: meteorites have predominantly been found on land. While this plot would allow us to reconstruct Earth's land masses from the locations of these meteorites, a more interesting approach would be to find out where exactly these meteorites have struck. This can be done through an interactive `leaflet` map, where we will display the meteorite's location through clustered markers. Upon zooming in on the map, each cluster splits in separate sub-clusters until the individual markers are visible. Note that if no `clusterOptions` are defined, all 31 924 meteorites will be plotted as a separate marker, which will gravely incapacitate the `leaflet`'s performance. We will also add each meteorite's data to the popup when a marker is clicked.
+
+```{r fig2, include = TRUE}
+leaflet() %>% addProviderTiles('CartoDB.Positron') %>%
+    addMarkers(data = met,
+        lng = ~reclong, lat = ~reclat,
+        popup = ~paste('Name:', name, '<br/>',
+            'Discovered:', year, '<br/>',
+            'Composition:', recclass, '<br/>',
+            'Mass:', mass, ' g<br/>'),
+        clusterOptions = markerClusterOptions())
+```
+
+While the clusters provide a fast way to plot the data on a world map, it fails at giving a clear general overview of all meteorites' locations. We would like to obtain a combination of the first plot, where all points are displayed separately, and the second plot, where we can get more information about the density of the markers. An option presents itself as the `addHeatmap()` function in the `leaflet.extras` package. Using this tool, we can create a nice and quick overview of our data. Nevertheless, it tends to give worse results than the clustering approach if we want to look very closely at a limited number of locations. Considering this fact, one can argue that a dynamic `leaflet` plot is not entirely necessary, and a static plotting method using packages like `tmap` or `ggplot2` can be used instead.
+
+```{r fig3, include = TRUE}
+leaflet() %>% addProviderTiles('CartoDB.Positron') %>%
+    addHeatmap(data = met, lng = ~reclong, lat = ~reclat, blur = 25, radius = 10)
+```
+
+We expect meteorites to be able to strike in any place on Earth. Obviously, all meteorites impeding on the ocean will be near impossible to find, which means that we can reduce this first assumption to "we expect meteorites to be found in any place on land". If we check this statement according to the given heatmap, it is clear that some places, like northern Russia, clearly display a lack of meteorites, while Oman and Antarctica seem to have an abundance of extra-terrestrial rocks lying around. Let us therefore look more closely into the matter and split the set of meteorites in the "Found" and "Fell" categories.
+
+We can start by looking to the large amount of meteorites found in Oman and Antarctica. To get data for each of these entries, let us create a new `country` column, which uses the longitude and latitude to deduct the corresponding country for every meteorite. We can do this by using the function `maps::map.where()`. Since some countries are split in the format `Country:part`, we will omit every `part` from these names, such that we end up with just the country name. We can subsequently investigate the amounts by using `data.table`'s `.N` functionality (and let us ignore that Antarctica is not actually a country):
+
+```{r include = TRUE}
+met[, country := map.where(database = 'world', reclong, reclat)]
+met[, country := tstrsplit(country, ':')[1]]
+counts <- met[country %in% c('Oman', 'Antarctica'), .N, by = c('country', 'fall')]
+```
+
+We obtain the following table for the meteorite counts:
+
+```{r include = TRUE, echo = FALSE}
+knitr::kable(counts, 'html') %>% kable_styling(full_width = F)
+```
+
+We can see that no meteorites have been seen falling, while over 20 000 and nearly 3000 meteorites have been found in Antarctica and Oman, respectively. If we do some research on these matters, we find that the reason for these high numbers are the [meteorite searching expeditions](https://www.livescience.com/3613-searching-meteorites-deserts-oman.html "Searching for meteorites in the deserts of Oman") which are organised in Oman and Antarctica because of the contrasting properties of the underlying sand and ice, which facilitates finding meteorites.
+
+Following the same procedure, we find that in total about 1000 meteorites were seen falling globally, while over 30000 were found without previous sightings. Note that this considers only the filtered data, and some results might be lost in the meteorites with bad table entries. Considering that not all areas are equally suited for meteorite searches, a clear example for this is northern Russia, which is sparsely populated and provides too many contrasting elements to clearly distinguish a meteorite from its surroundings.
+
+If we think about the meteorite sightings, we wonder if there is a correlation to the local population density. It will be hard to significantly compare actual population density to meteorite density since there are only around 1000 meteorites sighted, but there is sufficient data to give a first impression. Since we are not going to delve into full scientific proof, we can take some small artistic freedom to provide a nice data visualisation. As you may know, `leaflet` operates with a geographical tiles system. Besides the standard tiles provided by [OpenStreetMap](http://www.openstreetmap.org "OpenStreetMap") and the popular [CartoDB](https://carto.com/location-data-services/basemaps/ "CartoDB") tiles, NASA has also provided some tiles which prove to be interesting for our current visualisation. We will use the `NASAGIBS.ViirsEarthAtNight2012` tiles. While I do not want to spoil the surprise, some information can be deducted from the name. We will now plot the meteorites where the `fall` category equals "Fell", again with the `leaflet.extras::addHeatmap()` function.
+
+```{r fig4, include = TRUE, fig.width = 10}
+leaflet() %>%
+    addProviderTiles(providers$NASAGIBS.ViirsEarthAtNight2012, options = providerTileOptions(minZoom = 2)) %>%
+    addHeatmap(data = met[fall == 'Fell'], lng = ~reclong, lat = ~reclat, blur = 25, radius = 10)
+```
+
+In a nightly view of Earth, one can deduct from present lighting the presence of population. We see on this image, that for places with more light, and thus arguably a lot of population, more meteorites have been seen falling. It has to be noted however that areas with less light are not necessarily more sparsely populated, however some link may be present, but development factors have to be taken into account as well. While this image therefore does not prove correlation between population density and meteorite sighting density, there clearly is a link between the presence of population and sightings of meteorites.
+
