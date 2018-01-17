@@ -67,6 +67,7 @@ if ( is.null(path_to_wd) | !dir.exists(path_to_wd)) {
 # tidyverse: see https://blog.rstudio.org/2016/09/15/tidyverse-1-0-0/
 cat("
 library(readr)
+library(lubridate)
 library(data.table)
 library(leaflet)
 library(leaflet.extras)
@@ -128,7 +129,7 @@ For the following workflow, the following packages are used:
 After downloading the csv file from NASA's database, the first steps in our analysis process consist of cleaning the data. We use the `readr::read_csv()` function to load our data into our R instance, and subsequently transform the resulting `data.frame` into a `data.table` object, where all `NA` values are omitted from the table, as they will not benefit us.
 
 ```{r include = TRUE, message = FALSE}
-met <- read_csv('Meteorite_Landings.csv')
+met <- read_csv('input/Meteorite_Landings.csv')
 met <- na.omit(as.data.table(met))
 ```
 
