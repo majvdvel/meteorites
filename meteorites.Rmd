@@ -1,15 +1,16 @@
 ---
-title: "Meteorites (1)"
-author: "Mattias Van de Velde"
-date: "12-02-2018"
-slug: meteorites
-tags:
-- meteorites
-- leaflet
+title: Meteorites (1)
+author: Mattias Van de Velde
+profile: https://www.linkedin.com/in/mattias-van-de-velde/
+date: "2018-02-12"
 categories:
-- R
-- Data cleaning
-- Data visualisation
+    - R
+    - Data cleaning
+    - Data visualisation
+tags:
+    - meteorites
+    - leaflet
+slug: meteorites
 ---
 
 ```{r, echo=FALSE}
