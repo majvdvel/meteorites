@@ -243,7 +243,7 @@ As you may know, `leaflet` operates with a geographical tiles system. Besides th
 
 ```{r fig4, include = TRUE}
 leaflet(width = '100%') %>%
-    setView(lng = 0, lat = 0, zoom = 2) %>%
+    setView(lng = 10, lat = 20, zoom = 2) %>%
     addProviderTiles(providers$NASAGIBS.ViirsEarthAtNight2012, options = providerTileOptions(minZoom = 2)) %>%
     addHeatmap(data = met[fall == 'Fell'], lng = ~reclong, lat = ~reclat, blur = 25, radius = 10)
 ```
