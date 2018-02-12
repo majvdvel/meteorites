@@ -11,13 +11,6 @@ tags:
     - meteorites
     - leaflet
 slug: meteorites
-tags:
-- meteorites
-- leaflet
-categories:
-- R
-- Data cleaning
-- Data visualisation
 ---
 
 ```{r, echo=FALSE}
