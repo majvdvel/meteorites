@@ -1,15 +1,15 @@
 ---
-title: Meteorites (1)
-author: Mattias Van de Velde
+title: "Meteorites (1)"
+author: "Mattias Van de Velde"
 date: "12-02-2018"
-categories:
-    - R
-    - Data cleaning
-    - Data visualisation
-tags:
-    - meteorites
-    - leaflet
 slug: meteorites
+tags:
+- meteorites
+- leaflet
+categories:
+- R
+- Data cleaning
+- Data visualisation
 ---
 
 ```{r, echo=FALSE}
@@ -243,6 +243,7 @@ As you may know, `leaflet` operates with a geographical tiles system. Besides th
 
 ```{r fig4, include = TRUE}
 leaflet(width = '100%') %>%
+    setView(lng = 0, lat = 0, zoom = 2) %>%
     addProviderTiles(providers$NASAGIBS.ViirsEarthAtNight2012, options = providerTileOptions(minZoom = 2)) %>%
     addHeatmap(data = met[fall == 'Fell'], lng = ~reclong, lat = ~reclat, blur = 25, radius = 10)
 ```
