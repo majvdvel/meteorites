@@ -1,7 +1,7 @@
 ---
 title: Meteorites (2)
 author: Mattias Van de Velde
-date: "12-03-2018"
+date: "13-03-2018"
 categories:
     - R
     - Data visualisation
@@ -122,7 +122,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Introduction
 
-In the [previous blog post](https://altran-data-analytics.netlify.com/2018/02/12/meteorites/), we talked about visualising the locations where meteorites struck Earth and we made some conclusions about the locations where these meteorites were found. What we didn't touch upon yet is the meteorites mass. We will keep working with our cleaned meteorite data set, and we will aim to find out whether we can get some kind of mass distribution, and if we can use the meteorites mass in a global visualisation.
+In the [previous blog post](https://altran-data-analytics.netlify.com/2018/02/12/meteorites/), we talked about visualising the locations where meteorites struck Earth and we made some conclusions about the locations where these meteorites were found. What we didn't touch upon yet is the meteorites' mass. We will keep working with our cleaned meteorite data set, and we will aim to find out whether we can get some kind of mass distribution, and if we can use the meteorites' mass in a global visualisation.
 
 The packages which will be used are [`data.table`](https://cran.r-project.org/package=data.table), [`leaflet`](https://cran.r-project.org/package=leaflet), [`ggplot2`](https://cran.r-project.org/package=ggplot2), [`maps`](https://cran.r-project.org/package=maps), [`maptools`](https://cran.r-project.org/package=maptools), [`raster`](https://cran.r-project.org/package=raster), [`dplyr`](https://cran.r-project.org/package=dplyr) and [`htmltools`](https://cran.r-project.org/package=htmltools).
 
@@ -139,9 +139,9 @@ met[, country := tstrsplit(country, ':')[1]]
 setnames(met, 'mass (g)', 'mass')
 ```
 
-## Meteorites mass descriptive analysis
+## Meteorites' mass descriptive analysis
 
-As an initial step, we can check the minimum and maximum meteorites mass to get an idea of the mass range.
+As an initial step, we can check the minimum and maximum mass of meteorites to get an idea of the mass range.
 
 ```{r include = TRUE}
 met[, min(mass)]
@@ -343,3 +343,7 @@ leaflet(world, width = '100%') %>%
 ```
 
 ## Conclusions
+
+After the rather basic plotting methods included in the previous blog post, we now delved into more advanced visualisation methods, especially by designing the custom labels. Not a lot of sources are available for this purpose, at least not in an R data visualisation context. As can be seen in the final plot, custom labels can provide an additional layer of interesting information while preventing unneccesary cluttering of the main image.
+
+More analysis can be done on the meteorites' data set, however this requires additional background knowledge. Material scientists can investigate properties of the meteorites' composition, while others should be able to provide scientific explanations for the shape of the obtained mass distributions.
